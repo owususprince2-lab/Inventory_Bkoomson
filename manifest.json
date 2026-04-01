@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>LabStock — Team Benny</title>
+
+<!-- PWA Meta -->
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#00e5a0">
+<meta name="mobile-web-app-capable" content="yes">
+
+<!-- iOS specific -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LabStock">
+<link rel="apple-touch-icon" href="./icons/icon-180.png">
+<link rel="apple-touch-icon" sizes="192x192" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="512x512" href="./icons/icon-512.png">
+
+<!-- Splash screen color for iOS -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --card: #1c2128;
+    --border: #30363d;
+    --accent: #00e5a0;
+    --warn: #f4a23a;
+    --danger: #ff5252;
+    --text: #e6edf3;
+    --muted: #7d8590;
+    --safe-top: env(safe-area-inset-top);
+    --safe-bottom: env(safe-area-inset-bottom);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+    overscroll-behavior: none;
+  }
+
+  /* HEADER — padded for iPhone notch */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: calc(16px + var(--safe-top)) 20px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo-area h1 { font-size: 1.4rem; font-weight: 800; color: var(--accent); }
+  .logo-area h1 span { color: var(--text); }
+  .logo-area p { font-family: 'Space Mono', monospace; font-size: 0.6rem; color: var(--muted); margin-top: 2px; letter-spacing: 2px; }
+  .header-actions { display: flex; gap: 8px; }
+
+  .btn {
+    padding: 9px 16px;
+    border-radius: 10px;
+    border: none;
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    -webkit-appearance: none;
+  }
+  .btn-accent { background: var(--accent); color: #0d1117; }
+  .btn-accent:active { background: #00ffb3; transform: scale(0.97); }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn-ghost:active { background: var(--card); }
+
+  /* STATS */
+  .stats-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 16px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; gap: 10px; }
+  .stat-icon { font-size: 1.4rem; }
+  .stat-val { font-size: 1.4rem; font-weight: 800; line-height: 1; }
+  .stat-lbl { font-size: 0.65rem; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* CONTROLS */
+  .controls { padding: 0 16px 12px; display: flex; flex-direction: column; gap: 10px; }
+  .search-wrap { position: relative; }
+  .search-wrap input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    padding: 11px 16px 11px 40px;
+    border-radius: 10px;
+    outline: none;
+    -webkit-appearance: none;
+  }
+  .search-wrap input:focus { border-color: var(--accent); }
+  .search-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 1rem; }
+
+  .filter-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .filter-scroll::-webkit-scrollbar { display: none; }
+  .filter-btn { flex-shrink: 0; padding: 8px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-family: 'Syne', sans-serif; font-size: 0.78rem; cursor: pointer; white-space: nowrap; transition: all 0.2s; }
+  .filter-btn.active { background: var(--accent); color: #0d1117; border-color: var(--accent); font-weight: 700; }
+
+  /* EMPTY STATE */
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 24px; text-align: center; gap: 14px; }
+  .empty-icon { font-size: 4rem; opacity: 0.25; }
+  .empty-state h2 { font-size: 1.2rem; font-weight: 800; color: var(--muted); }
+  .empty-state p { color: var(--muted); font-size: 0.85rem; max-width: 280px; line-height: 1.7; }
+
+  /* GRID — 2 columns on mobile */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 16px; padding-bottom: calc(100px + var(--safe-bottom)); }
+
+  /* ITEM CARD */
+  .item-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px 12px; display: flex; flex-direction: column; gap: 10px; position: relative; overflow: hidden; transition: transform 0.15s; }
+  .item-card:active { transform: scale(0.97); }
+  .item-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--bar-color, var(--accent)); }
+
+  .card-delete { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 50%; background: rgba(255,82,82,0.15); border: none; color: var(--danger); cursor: pointer; font-size: 0.75rem; display: flex; align-items: center; justify-content: center; }
+
+  .item-emoji { font-size: 2.2rem; text-align: center; }
+  .item-name { font-size: 0.82rem; font-weight: 700; text-align: center; line-height: 1.3; }
+  .item-category { font-size: 0.6rem; text-align: center; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-family: 'Space Mono', monospace; }
+
+  .qty-bar-wrap { background: var(--bg); border-radius: 6px; height: 5px; overflow: hidden; }
+  .qty-bar { height: 100%; border-radius: 6px; transition: width 0.4s, background 0.3s; }
+
+  .qty-controls { display: flex; align-items: center; gap: 6px; }
+  .qty-btn { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; -webkit-appearance: none; }
+  .qty-btn:active { background: var(--accent); color: #0d1117; }
+  .qty-btn.minus:active { background: var(--danger); }
+
+  .qty-display { flex: 1; text-align: center; font-family: 'Space Mono', monospace; font-size: 1.2rem; font-weight: 700; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 0; color: var(--text); cursor: pointer; outline: none; }
+  .qty-display:focus { border-color: var(--accent); color: var(--accent); }
+
+  .status-badge { font-size: 0.6rem; font-family: 'Space Mono', monospace; padding: 3px 8px; border-radius: 20px; text-align: center; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+  .status-ok { background: rgba(0,229,160,0.12); color: var(--accent); }
+  .status-low { background: rgba(244,162,58,0.12); color: var(--warn); }
+  .status-out { background: rgba(255,82,82,0.12); color: var(--danger); }
+
+  /* FLOATING ADD BUTTON (mobile-native feel) */
+  .fab {
+    position: fixed;
+    bottom: calc(24px + var(--safe-bottom));
+    right: 20px;
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #0d1117;
+    border: none;
+    font-size: 1.8rem;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 24px rgba(0,229,160,0.4);
+    cursor: pointer;
+    z-index: 90;
+    transition: all 0.2s;
+    -webkit-appearance: none;
+  }
+  .fab:active { transform: scale(0.93); box-shadow: 0 2px 12px rgba(0,229,160,0.3); }
+
+  /* MODAL — bottom sheet style on mobile */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 200; display: flex; align-items: flex-end; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 24px 24px 0 0;
+    padding: 12px 24px calc(32px + var(--safe-bottom));
+    width: 100%;
+    max-height: 92vh;
+    overflow-y: auto;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+    -webkit-overflow-scrolling: touch;
+  }
+  .modal-overlay.open .modal { transform: translateY(0); }
+
+  .modal-handle { width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 20px; }
+  .modal h2 { font-size: 1.2rem; font-weight: 800; margin-bottom: 4px; }
+  .modal-sub { color: var(--muted); font-size: 0.82rem; margin-bottom: 20px; line-height: 1.6; }
+
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 0.72rem; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
+  .form-group select, .form-group input { width: 100%; background: var(--card); border: 1px solid var(--border); color: var(--text); font-family: 'Syne', sans-serif; font-size: 1rem; padding: 13px 14px; border-radius: 12px; outline: none; -webkit-appearance: none; appearance: none; }
+  .form-group select:focus, .form-group input:focus { border-color: var(--accent); }
+  .form-group select option { background: var(--card); }
+  .select-wrap { position: relative; }
+  .select-wrap::after { content: '▾'; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; font-size: 1rem; }
+
+  #otherNameGroup { display: none; }
+
+  .modal-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+  .btn-large { width: 100%; padding: 15px; font-size: 1rem; border-radius: 14px; }
+
+  /* OFFLINE BANNER */
+  .offline-banner { display: none; background: var(--warn); color: #0d1117; text-align: center; padding: 8px; font-size: 0.8rem; font-weight: 700; font-family: 'Space Mono', monospace; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: calc(100px + var(--safe-bottom)); left: 50%; transform: translateX(-50%) translateY(20px); background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 12px; padding: 12px 20px; font-size: 0.85rem; opacity: 0; transition: all 0.3s; z-index: 999; white-space: nowrap; }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .toast.warn { border-left-color: var(--warn); }
+  .toast.danger { border-left-color: var(--danger); }
+
+  /* FOOTER */
+  footer { text-align: center; padding: 20px; border-top: 1px solid var(--border); font-family: 'Space Mono', monospace; font-size: 0.65rem; color: var(--muted); letter-spacing: 2px; }
+  footer span { color: var(--accent); font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div class="offline-banner" id="offlineBanner">📡 You're offline — showing cached data</div>
+
+<header>
+  <div class="logo-area">
+    <h1>🧪 Lab<span>Stock</span></h1>
+    <p>TEAM BENNY • INVENTORY</p>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-ghost" onclick="exportExcel()">📥 Excel</button>
+  </div>
+</header>
+
+<div class="stats-bar">
+  <div class="stat-card"><div class="stat-icon">📦</div><div><div class="stat-val" id="statTotal">0</div><div class="stat-lbl">Total Items</div></div></div>
+  <div class="stat-card"><div class="stat-icon">✅</div><div><div class="stat-val" id="statOk" style="color:var(--accent)">0</div><div class="stat-lbl">In Stock</div></div></div>
+  <div class="stat-card"><div class="stat-icon">⚠️</div><div><div class="stat-val" id="statLow" style="color:var(--warn)">0</div><div class="stat-lbl">Running Low</div></div></div>
+  <div class="stat-card"><div class="stat-icon">🚨</div><div><div class="stat-val" id="statOut" style="color:var(--danger)">0</div><div class="stat-lbl">Out of Stock</div></div></div>
+</div>
+
+<div class="controls">
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="Search items..." oninput="renderGrid()">
+  </div>
+  <div class="filter-scroll">
+    <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+    <button class="filter-btn" onclick="setFilter('PPE',this)">🧤 PPE</button>
+    <button class="filter-btn" onclick="setFilter('Consumables',this)">🧻 Consumables</button>
+    <button class="filter-btn" onclick="setFilter('Glassware',this)">🥛 Glassware</button>
+    <button class="filter-btn" onclick="setFilter('Chemicals',this)">🧴 Chemicals</button>
+    <button class="filter-btn" onclick="setFilter('Equipment',this)">🔧 Equipment</button>
+    <button class="filter-btn" onclick="setFilter('Cleaning',this)">🧹 Cleaning</button>
+    <button class="filter-btn" onclick="setFilter('Other',this)">📦 Other</button>
+  </div>
+</div>
+
+<div class="grid" id="itemGrid"></div>
+<div class="empty-state" id="emptyState">
+  <div class="empty-icon">🧪</div>
+  <h2>No items yet</h2>
+  <p>Tap the <strong style="color:var(--accent)">＋</strong> button below to add your first lab supply.</p>
+</div>
+
+<!-- Floating Action Button -->
+<button class="fab" onclick="openModal()">＋</button>
+
+<!-- BOTTOM SHEET MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>➕ Add Lab Item</h2>
+    <p class="modal-sub">Pick from the list or choose <em>Other</em> to type your own.</p>
+
+    <div class="form-group">
+      <label>Select Item</label>
+      <div class="select-wrap">
+        <select id="itemSelect" onchange="onItemSelect()">
+          <option value="">— Choose an item —</option>
+          <optgroup label="🧤 PPE">
+            <option value="Latex Gloves|PPE|🧤">Latex Gloves</option>
+            <option value="Nitrile Gloves|PPE|🧤">Nitrile Gloves</option>
+            <option value="Vinyl Gloves|PPE|🧤">Vinyl Gloves</option>
+            <option value="Lab Coat|PPE|🥼">Lab Coat</option>
+            <option value="Safety Goggles|PPE|👓">Safety Goggles</option>
+            <option value="Face Mask (Surgical)|PPE|😷">Face Mask (Surgical)</option>
+            <option value="N95 Respirator|PPE|😷">N95 Respirator</option>
+            <option value="Face Shield|PPE|🦺">Face Shield</option>
+            <option value="Shoe Covers|PPE|🧦">Shoe Covers</option>
+            <option value="Hair Net|PPE|👒">Hair Net</option>
+            <option value="Apron|PPE|🥼">Apron</option>
+          </optgroup>
+          <optgroup label="🧻 Consumables">
+            <option value="Celotape / Sellotape|Consumables|🗂️">Celotape / Sellotape</option>
+            <option value="Tissue / Paper Towels|Consumables|🧻">Tissue / Paper Towels</option>
+            <option value="Micropipette Tips 10µL|Consumables|💉">Micropipette Tips 10µL</option>
+            <option value="Micropipette Tips 200µL|Consumables|💉">Micropipette Tips 200µL</option>
+            <option value="Micropipette Tips 1000µL|Consumables|💉">Micropipette Tips 1000µL</option>
+            <option value="Eppendorf Tubes 1.5mL|Consumables|🧫">Eppendorf Tubes 1.5mL</option>
+            <option value="Eppendorf Tubes 2mL|Consumables|🧫">Eppendorf Tubes 2mL</option>
+            <option value="Falcon Tubes 15mL|Consumables|🧫">Falcon Tubes 15mL</option>
+            <option value="Falcon Tubes 50mL|Consumables|🧫">Falcon Tubes 50mL</option>
+            <option value="Petri Dishes|Consumables|⚗️">Petri Dishes</option>
+            <option value="PCR Tubes|Consumables|🧬">PCR Tubes</option>
+            <option value="96-Well Plate|Consumables|🔲">96-Well Plate</option>
+            <option value="Filter Paper|Consumables|📄">Filter Paper</option>
+            <option value="pH Indicator Paper|Consumables|🌈">pH Indicator Paper</option>
+            <option value="Parafilm|Consumables|🎞️">Parafilm</option>
+            <option value="Aluminium Foil|Consumables|✨">Aluminium Foil</option>
+            <option value="Cryovials|Consumables|🧊">Cryovials</option>
+            <option value="Weighing Boats|Consumables|⚖️">Weighing Boats</option>
+            <option value="Spatulas|Consumables|🥄">Spatulas</option>
+            <option value="Labels / Stickers|Consumables|🏷️">Labels / Stickers</option>
+            <option value="Marker Pens|Consumables|🖊️">Marker Pens</option>
+            <option value="Syringes 1mL|Consumables|💉">Syringes 1mL</option>
+            <option value="Syringes 5mL|Consumables|💉">Syringes 5mL</option>
+            <option value="Syringes 10mL|Consumables|💉">Syringes 10mL</option>
+            <option value="Needles 21G|Consumables|📌">Needles 21G</option>
+            <option value="Needles 23G|Consumables|📌">Needles 23G</option>
+            <option value="Syringe Filters 0.22µm|Consumables|🔵">Syringe Filters 0.22µm</option>
+            <option value="Disposable Pipettes|Consumables|🧪">Disposable Pipettes</option>
+            <option value="Pipette Bulbs|Consumables|🧪">Pipette Bulbs</option>
+            <option value="Sterile Swabs|Consumables|🩹">Sterile Swabs</option>
+            <option value="Cotton Wool|Consumables|☁️">Cotton Wool</option>
+            <option value="Gauze Swabs|Consumables|🩹">Gauze Swabs</option>
+          </optgroup>
+          <optgroup label="🥛 Glassware">
+            <option value="Beakers 100mL|Glassware|🥛">Beakers 100mL</option>
+            <option value="Beakers 250mL|Glassware|🥛">Beakers 250mL</option>
+            <option value="Beakers 500mL|Glassware|🥛">Beakers 500mL</option>
+            <option value="Beakers 1000mL|Glassware|🥛">Beakers 1000mL</option>
+            <option value="Erlenmeyer Flask 250mL|Glassware|⚗️">Erlenmeyer Flask 250mL</option>
+            <option value="Erlenmeyer Flask 500mL|Glassware|⚗️">Erlenmeyer Flask 500mL</option>
+            <option value="Volumetric Flask 100mL|Glassware|⚗️">Volumetric Flask 100mL</option>
+            <option value="Measuring Cylinders|Glassware|📏">Measuring Cylinders</option>
+            <option value="Glass Slides|Glassware|🔲">Glass Slides</option>
+            <option value="Cover Slips|Glassware|🔲">Cover Slips</option>
+            <option value="Test Tubes|Glassware|🧪">Test Tubes</option>
+            <option value="Burette|Glassware|📏">Burette</option>
+            <option value="Pipette (Glass)|Glassware|🧪">Pipette (Glass)</option>
+            <option value="Watch Glass|Glassware|🔵">Watch Glass</option>
+            <option value="Crucible|Glassware|🟤">Crucible</option>
+          </optgroup>
+          <optgroup label="🧴 Chemicals">
+            <option value="Ethanol 70%|Chemicals|🧴">Ethanol 70%</option>
+            <option value="Isopropanol (IPA)|Chemicals|🧴">Isopropanol (IPA)</option>
+            <option value="Distilled Water|Chemicals|💧">Distilled Water</option>
+            <option value="Sodium Chloride|Chemicals|🧂">Sodium Chloride</option>
+            <option value="PBS (Phosphate Buffered Saline)|Chemicals|🔵">PBS</option>
+            <option value="Agar|Chemicals|🟡">Agar</option>
+            <option value="HCl 1M|Chemicals|⚗️">HCl 1M</option>
+            <option value="NaOH 1M|Chemicals|⚗️">NaOH 1M</option>
+            <option value="Methanol|Chemicals|🧴">Methanol</option>
+            <option value="Acetone|Chemicals|🧴">Acetone</option>
+            <option value="Formaldehyde|Chemicals|⚗️">Formaldehyde</option>
+            <option value="Hydrogen Peroxide|Chemicals|💧">Hydrogen Peroxide</option>
+          </optgroup>
+          <optgroup label="🔧 Equipment">
+            <option value="Disposable Scalpels|Equipment|🔪">Disposable Scalpels</option>
+            <option value="Forceps / Tweezers|Equipment|🗡️">Forceps / Tweezers</option>
+            <option value="Scissors|Equipment|✂️">Scissors</option>
+            <option value="Gas Lighter|Equipment|🔥">Gas Lighter</option>
+            <option value="Stirring Rods|Equipment|🥢">Stirring Rods</option>
+            <option value="Test Tube Rack|Equipment|🗂️">Test Tube Rack</option>
+            <option value="Wire Gauze|Equipment|🟫">Wire Gauze</option>
+            <option value="Tongs|Equipment|🔧">Tongs</option>
+          </optgroup>
+          <optgroup label="🧹 Cleaning">
+            <option value="Lab Detergent (Decon 90)|Cleaning|🧹">Lab Detergent (Decon 90)</option>
+            <option value="Bleach / Disinfectant|Cleaning|🧴">Bleach / Disinfectant</option>
+            <option value="Autoclave Bags|Cleaning|🗑️">Autoclave Bags</option>
+            <option value="Sharps Container|Cleaning|📦">Sharps Container</option>
+            <option value="Biohazard Waste Bags|Cleaning|☣️">Biohazard Waste Bags</option>
+            <option value="Spray Bottles|Cleaning|💦">Spray Bottles</option>
+            <option value="Disinfectant Wipes|Cleaning|🧻">Disinfectant Wipes</option>
+            <option value="Hand Sanitizer|Cleaning|🧴">Hand Sanitizer</option>
+          </optgroup>
+          <optgroup label="📦 Other">
+            <option value="__other__|Other|📦">Other — type your own</option>
+          </optgroup>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group" id="otherNameGroup">
+      <label>Item Name</label>
+      <input type="text" id="otherName" placeholder="Type the item name..." />
+    </div>
+
+    <div class="form-group">
+      <label>Quantity in stock</label>
+      <input type="number" id="newQty" placeholder="e.g. 50" min="0" inputmode="numeric" />
+    </div>
+
+    <div class="form-group">
+      <label>Low stock alert — warn when qty reaches</label>
+      <input type="number" id="newThresh" placeholder="e.g. 10  (optional)" min="0" inputmode="numeric" />
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-accent btn-large" onclick="addItem()">Add to Inventory</button>
+      <button class="btn btn-ghost btn-large" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer>POWERED BY <span>TEAM BENNY</span> &nbsp;•&nbsp; LABORATORY INVENTORY SYSTEM</footer>
+
+<script>
+  // ── Register Service Worker ──
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW:', err));
+    });
+  }
+
+  // ── Offline banner ──
+  window.addEventListener('online',  () => document.getElementById('offlineBanner').style.display = 'none');
+  window.addEventListener('offline', () => document.getElementById('offlineBanner').style.display = 'block');
+
+  // ── Data ──
+  let items = JSON.parse(localStorage.getItem('labstock_v2') || '[]');
+  let nextId = parseInt(localStorage.getItem('labstock_nextid') || '1');
+  let activeFilter = 'all';
+
+  function save() {
+    localStorage.setItem('labstock_v2', JSON.stringify(items));
+    localStorage.setItem('labstock_nextid', String(nextId));
+  }
+
+  function setFilter(f, el) {
+    activeFilter = f;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    renderGrid();
+  }
+
+  function getStatus(item) {
+    if (item.qty === 0) return 'out';
+    if (item.thresh > 0 && item.qty <= item.thresh) return 'low';
+    return 'ok';
+  }
+
+  function renderGrid() {
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    const grid = document.getElementById('itemGrid');
+    const empty = document.getElementById('emptyState');
+
+    let filtered = items.filter(item => {
+      const matchCat = activeFilter === 'all' || item.category === activeFilter;
+      const matchQ = item.name.toLowerCase().includes(q) || item.category.toLowerCase().includes(q);
+      return matchCat && matchQ;
+    });
+
+    if (filtered.length === 0) {
+      grid.innerHTML = '';
+      empty.style.display = 'flex';
+    } else {
+      empty.style.display = 'none';
+      grid.innerHTML = filtered.map(item => {
+        const status = getStatus(item);
+        const maxQty = item.thresh > 0 ? item.thresh * 5 : Math.max(item.qty, 1);
+        const pct = Math.min(100, (item.qty / maxQty) * 100);
+        const barColor = status === 'out' ? 'var(--danger)' : status === 'low' ? 'var(--warn)' : 'var(--accent)';
+        const statusClass = 'status-' + status;
+        const statusText = status === 'out' ? '🚨 OUT' : status === 'low' ? '⚠️ LOW' : '✅ OK';
+        return `
+        <div class="item-card" style="--bar-color:${barColor}">
+          <button class="card-delete" onclick="deleteItem(${item.id})">✕</button>
+          <div class="item-emoji">${item.emoji}</div>
+          <div class="item-name">${item.name}</div>
+          <div class="item-category">${item.category}</div>
+          <div class="qty-bar-wrap"><div class="qty-bar" style="width:${Math.max(pct,2)}%;background:${barColor}"></div></div>
+          <div class="qty-controls">
+            <button class="qty-btn minus" onclick="changeQty(${item.id},-1)">−</button>
+            <div class="qty-display" contenteditable="true"
+              inputmode="numeric"
+              onblur="setQtyDirect(${item.id},this)"
+              onkeydown="if(event.key==='Enter'){this.blur();event.preventDefault()}">${item.qty}</div>
+            <button class="qty-btn" onclick="changeQty(${item.id},1)">+</button>
+          </div>
+          <div class="status-badge ${statusClass}">${statusText}</div>
+        </div>`;
+      }).join('');
+    }
+    updateStats();
+  }
+
+  function updateStats() {
+    document.getElementById('statTotal').textContent = items.length;
+    document.getElementById('statOk').textContent = items.filter(i => getStatus(i) === 'ok').length;
+    document.getElementById('statLow').textContent = items.filter(i => getStatus(i) === 'low').length;
+    document.getElementById('statOut').textContent = items.filter(i => getStatus(i) === 'out').length;
+  }
+
+  function changeQty(id, delta) {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    item.qty = Math.max(0, item.qty + delta);
+    save(); renderGrid();
+    const s = getStatus(item);
+    if (delta < 0 && s === 'out') showToast(`🚨 ${item.name} OUT OF STOCK!`, 'danger');
+    else if (delta < 0 && s === 'low') showToast(`⚠️ ${item.name} running low (${item.qty} left)`, 'warn');
+  }
+
+  function setQtyDirect(id, el) {
+    const val = parseInt(el.textContent.trim());
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    if (!isNaN(val) && val >= 0) { item.qty = val; save(); }
+    renderGrid();
+  }
+
+  function deleteItem(id) {
+    if (!confirm('Remove this item?')) return;
+    items = items.filter(i => i.id !== id);
+    save(); renderGrid();
+    showToast('Item removed.');
+  }
+
+  function openModal() {
+    document.getElementById('itemSelect').value = '';
+    document.getElementById('otherName').value = '';
+    document.getElementById('newQty').value = '';
+    document.getElementById('newThresh').value = '';
+    document.getElementById('otherNameGroup').style.display = 'none';
+    document.getElementById('modalOverlay').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('open');
+  }
+
+  function onItemSelect() {
+    const val = document.getElementById('itemSelect').value;
+    document.getElementById('otherNameGroup').style.display =
+      val === '__other__|Other|📦' ? 'block' : 'none';
+  }
+
+  function addItem() {
+    const sel = document.getElementById('itemSelect').value;
+    if (!sel) { showToast('Please select an item.', 'warn'); return; }
+
+    let name, category, emoji;
+    if (sel === '__other__|Other|📦') {
+      name = document.getElementById('otherName').value.trim();
+      if (!name) { showToast('Please type an item name.', 'warn'); return; }
+      category = 'Other'; emoji = '📦';
+    } else {
+      [name, category, emoji] = sel.split('|');
+    }
+
+    const qty = parseInt(document.getElementById('newQty').value);
+    if (isNaN(qty) || qty < 0) { showToast('Enter a valid quantity.', 'warn'); return; }
+    const thresh = parseInt(document.getElementById('newThresh').value) || 0;
+
+    if (items.find(i => i.name.toLowerCase() === name.toLowerCase())) {
+      showToast(`"${name}" already in inventory!`, 'warn'); return;
+    }
+
+    items.push({ id: nextId++, name, category, emoji, qty, thresh });
+    save(); closeModal(); renderGrid();
+    showToast(`✅ ${name} added!`);
+  }
+
+  function exportExcel() {
+    if (items.length === 0) { showToast('Nothing to export yet!', 'warn'); return; }
+    const rows = [['Item Name', 'Category', 'Quantity', 'Low Stock Threshold', 'Status']];
+    items.forEach(i => {
+      const s = getStatus(i);
+      rows.push([i.name, i.category, i.qty, i.thresh,
+        s === 'ok' ? 'In Stock' : s === 'low' ? 'Running Low' : 'Out of Stock']);
+    });
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:32},{wch:15},{wch:12},{wch:22},{wch:15}];
+    XLSX.utils.book_append_sheet(wb, ws, 'Lab Inventory');
+    XLSX.writeFile(wb, `Lab_Inventory_TeamBenny_${new Date().toISOString().slice(0,10)}.xlsx`);
+    showToast('📥 Excel downloaded!');
+  }
+
+  let toastTimer;
+  function showToast(msg, type = '') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show ' + type;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.className = 'toast', 3500);
+  }
+
+  // Close modal on backdrop tap
+  document.getElementById('modalOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+
+  renderGrid();
+</script>
+</body>
+</html>
